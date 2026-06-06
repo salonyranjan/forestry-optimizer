@@ -25,7 +25,7 @@ function buildSearchQuery(concreteRatio: number, canopyCoverage: number): string
 
 export async function POST(request: Request) {
   try {
-    const { canopyCoverage, concreteRatio, lat, lng } = await request.json();
+    const { canopyCoverage, concreteRatio, lat, lng, weather } = await request.json();
     if (canopyCoverage === undefined || concreteRatio === undefined) {
       return NextResponse.json({ error: 'Missing canopyCoverage or concreteRatio' }, { status: 400 });
     }
@@ -72,8 +72,12 @@ export async function POST(request: Request) {
       model: 'llama-3.3-70b-versatile'
     });
 
-    // Prompt including geographic context
-    const prompt = `You are an expert Environmental Data Analyst. Analyze this urban sector configuration:\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Canopy Coverage: ${canopyCoverage}%\n- Concrete Ratio: ${concreteRatio}%\n\nTop matching tree species:\n${matchedTrees
+    // Prompt including geographic context and live weather telemetry
+    const weatherPart = weather
+      ? `The current ambient outdoor meteorological telemetry at these exact coordinates is: Ambient Temperature: ${weather.temp}°C, Relative Humidity: ${weather.humidity}%, and Wind Speed: ${weather.wind} km/h. Synthesize these active climate indicators alongside our canopy coverage density parameters to recommend species that optimize water vapor cooling efficiency under these real-time structural stressors.`
+      : '';
+
+    const prompt = `You are an expert Environmental Data Analyst. Analyze this urban sector configuration:\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Canopy Coverage: ${canopyCoverage}%\n- Concrete Ratio: ${concreteRatio}%\n${weatherPart}\n\nTop matching tree species:\n${matchedTrees
       .map((t, i) => `${i + 1}. ${t.metadata.name} – ${t.text}`)
       .join('\n')}\n\nProvide a concise action plan with:\n1. Recommended species deployment.\n2. Placement strategy for the given coordinates.\n3. Estimated cooling impact (°C).`;
 

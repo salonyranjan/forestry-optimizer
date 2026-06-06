@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import HeatMap3D from "@/components/HeatMap3D";
 import dynamic from "next/dynamic";
 const MapPicker = dynamic(() => import("@/components/MapPicker"), { ssr: false });
-import { Sliders, Sparkles, Trees, Info, Activity } from "lucide-react";
+import { Sliders, Sparkles, Trees, Info, Activity, Thermometer, Droplets, Wind } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
 export default function Home() {
@@ -18,6 +18,34 @@ export default function Home() {
   const [matches, setMatches] = useState<Array<any>>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Weather state for live meteorological telemetry
+  const [weather, setWeather] = useState<{ temp: number; humidity: number; wind: number } | null>(null);
+
+  // Fetch live weather data from Open-Meteo API
+  const fetchLocalWeather = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setWeather({
+          temp: data.current?.temperature_2m ?? 0,
+          humidity: data.current?.relative_humidity_2m ?? 0,
+          wind: data.current?.wind_speed_10m ?? 0,
+        });
+      }
+    } catch (e) {
+      console.error("Weather fetch error:", e);
+    }
+  };
+
+  // Fetch weather on initial mount with default coordinates
+  useEffect(() => {
+    // Default to New York City coordinates for initial display
+    fetchLocalWeather(40.7128, -74.0060);
+  }, []);
+
   // Trigger AI optimization
   const triggerOptimization = async () => {
     setIsLoading(true);
@@ -30,7 +58,9 @@ export default function Home() {
         body: JSON.stringify({
           canopyCoverage,
           concreteRatio,
-          ...(location ? { lat: location.lat, lng: location.lng } : {})
+          ...(location ? { lat: location.lat, lng: location.lng } : {}),
+          // Include live weather telemetry in optimization payload
+          ...(weather ? { weather } : {})
         }),
       });
 
@@ -77,6 +107,35 @@ export default function Home() {
           <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             <Sliders className="w-3.5 h-3.5" />
             <span>Simulation Parameters</span>
+          </div>
+
+          {/* Live Climate Telemetry Dashboard */}
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+            <div className="flex items-center gap-2">
+              <Trees className="w-4 h-4 text-sky-400" />
+              <span>Live Climate Telemetry</span>
+            </div>
+            {weather && (
+              <>
+                <div className="flex-1 space-x-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Thermometer className="w-4 h-4 text-red-400" />
+                    <span className="flex-1">{weather.temp}°C</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Droplets className="w-4 h-4 text-blue-400" />
+                    <span className="flex-1">{weather.humidity}%</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Wind className="w-4 h-4 text-gray-300" />
+                    <span className="flex-1">{weather.wind} km/h</span>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500">
+                  ● Keyless Telemetry Stream Active
+                </div>
+              </>
+            )}
           </div>
 
           {/* Canopy Slider */}
