@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { ChatGroq } from '@langchain/groq';
 
+// Strongly typed match interface to enforce clean data boundaries
 interface TreeMatch {
   id: string;
   text: string;
@@ -15,6 +16,7 @@ interface TreeMatch {
   };
 }
 
+// Build a highly targeted natural‑language query for Pinecone
 function buildSearchQuery(concreteRatio: number, canopyCoverage: number): string {
   const concretePart = concreteRatio > 50 ? 'highly pollution‑resilient shade trees' : 'moderate shade trees';
   const canopyPart = canopyCoverage > 50 ? 'maximal canopy coverage' : 'modest canopy coverage';
@@ -23,29 +25,43 @@ function buildSearchQuery(concreteRatio: number, canopyCoverage: number): string
 
 export async function POST(request: Request) {
   try {
-    const { canopyCoverage, concreteRatio, lat, lng, weather } = await request.json();
-    if (canopyCoverage === undefined || concreteRatio === undefined) {
-      return NextResponse.json({ error: 'Missing canopyCoverage or concreteRatio' }, { status: 400 });
-    }
-    const latitude = typeof lat === 'number' ? lat : 25.6126;
-    const longitude = typeof lng === 'number' ? lng : 85.1589;
+    const data = await request.json();
+    
+    // Defensive parameter destructuring matching frontend state variables perfectly
+    const canopyCoverage = data.canopyCoverage ?? 50;
+    const concreteRatio = data.concreteRatio ?? 30;
+    const weather = data.weather || null;
+    
+    // Fallback coordinates locked natively to Kolkata Center
+    const latitude = typeof data.lat === 'number' ? data.lat : 22.5726;
+    const longitude = typeof data.lng === 'number' ? data.lng : 88.3639;
 
+    if (canopyCoverage === undefined || concreteRatio === undefined) {
+      return NextResponse.json({ error: 'Missing canopyCoverage or concreteRatio in payload' }, { status: 400 });
+    }
+
+    // Initialise Pinecone client securely
     const apiKey = process.env.PINECONE_API_KEY ?? '';
     const indexName = process.env.PINECONE_INDEX_NAME ?? '';
+    
     if (!apiKey || !indexName) {
-      return NextResponse.json({ error: 'Pinecone configuration missing' }, { status: 500 });
+      return NextResponse.json({ error: 'Pinecone configuration or environment variables are missing' }, { status: 500 });
     }
+    
     const pc = new Pinecone({ apiKey });
     const index = pc.index(indexName);
 
+    // Perform integrated serverless text search (no external embedding overhead needed)
     const searchResponse: any = await index.searchRecords({
       query: {
         inputs: { text: buildSearchQuery(concreteRatio, canopyCoverage) },
         topK: 3
       }
     });
+    
     const hits = searchResponse?.result?.hits || [];
 
+    // Map the database hits cleanly into our strongly typed interface
     const matchedTrees: TreeMatch[] = hits.map((hit: any): TreeMatch => {
       const fields = hit.fields || {};
       return {
@@ -61,28 +77,39 @@ export async function POST(request: Request) {
       };
     });
 
+    // Initialise the high-speed Groq LLM inference engine
     const llm = new ChatGroq({
       apiKey: process.env.GROQ_API_KEY ?? '',
       model: 'llama-3.3-70b-versatile'
     });
 
-
-    // Prompt including geographic context and live weather telemetry
+    // Inject live geographic context and meteorological telemetry directly into the AI's mind
     const weatherPart = weather
       ? `The current ambient outdoor meteorological telemetry at these exact coordinates is: Ambient Temperature: ${weather.temp}°C, Relative Humidity: ${weather.humidity}%, and Wind Speed: ${weather.wind} km/h. Synthesize these active climate indicators alongside our canopy coverage density parameters to recommend species that optimize water vapor cooling efficiency under these real-time structural stressors.`
       : '';
 
     const prompt = `You are an expert Environmental Data Analyst. Analyze this urban sector configuration:\n- Latitude: ${latitude}\n- Longitude: ${longitude}\n- Canopy Coverage: ${canopyCoverage}%\n- Concrete Ratio: ${concreteRatio}%\n${weatherPart}\n\nTop matching tree species:\n${matchedTrees
-       0a5d726c3a95a126cb617774fdb16db8969f777c
       .map((t, i) => `${i + 1}. ${t.metadata.name} – ${t.text}`)
       .join('\n')}\n\nProvide a concise action plan with:\n1. Recommended species deployment.\n2. Placement strategy for the given coordinates.\n3. Estimated cooling impact (°C).`;
 
-    const response = await llm.invoke(prompt);
-    const analysis = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    // Execute the model and parse the string payload safely with isolation for Groq errors
+    let analysisText = "";
+    try {
+      const llmResponse = await llm.invoke(prompt);
+      analysisText = typeof llmResponse.content === 'string' ? llmResponse.content : JSON.stringify(llmResponse.content);
+    } catch (llmError: any) {
+      console.error("GROQ API ERROR:", llmError);
+      analysisText = `⚠️ Groq LLM Failure: ${llmError.message || "Unknown API Error"}`;
+    }
 
-    return NextResponse.json({ analysis, matches: matchedTrees });
+    return NextResponse.json({ analysis: analysisText, matches: matchedTrees });
+    
   } catch (err) {
     console.error('Optimization route error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    // Explicitly return the exact error message string directly to the frontend UI
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) }, 
+      { status: 500 }
+    );
   }
 }

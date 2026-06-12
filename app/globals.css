@@ -22,9 +22,10 @@ body {
 /* Premium micro-scrollbar utility for the data-dense sidebar panel */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #374151 transparent; /* gray-700 */
+  scrollbar-color: #00bcd4 #2e3a46; /* emerald thumb, slate track */
 }
 
+/* WebKit (Chrome, etc.) */
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
 }
@@ -34,12 +35,12 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #374151; /* gray-700 */
+  background: #00bcd4; /* emerald-400 */
   border-radius: 9999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #4b5563; /* gray-600 */
+  background: #0097a8; /* emerald-700 for hover */
 }
 
 /* Smooth visual entrance animation for the Groq analytics and vector match components */
